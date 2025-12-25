@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Siya's Night Adventure</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@800&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; overflow: hidden; background: #020617; touch-action: none; font-family: 'Montserrat', sans-serif; }
+        #ui { position: fixed; top: 0; width: 100%; z-index: 50; text-align: center; padding: 15px; pointer-events: none; }
+        .letter-tag { display: inline-block; padding: 4px 8px; margin: 2px; border: 1px solid #ff85ff; border-radius: 4px; color: #ff85ff; font-size: 10px; background: rgba(0,0,0,0.7); }
+        .found { background: #ff85ff !important; color: #000 !important; box-shadow: 0 0 10px #ff85ff; }
+        #win-modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 100; background: #000; padding: 30px; border-radius: 20px; border: 2px solid #ff85ff; text-align: center; color: white; width: 85%; max-width: 350px; pointer-events: auto; }
+        .hint { position: fixed; bottom: 10px; width: 100%; text-align: center; color: rgba(255,255,255,0.4); font-size: 10px; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <h1 class="text-white text-lg mb-2">APNE NAAM KE LETTERS DHUNDIYE !!</h1>
+        <div id="letter-display"></div>
+    </div>
+
+    <div id="win-modal">
+        <h2 class="text-2xl font-bold mb-3 text-pink-500">MISSION COMPLETE! 🏆</h2>
+        <p class="text-sm mb-5 text-gray-300">Siya Anurag Narute, you found all the letters! Happy Birthday!</p>
+        <a href="https://your-second-website-link.com" target="_blank" class="bg-pink-600 text-white px-6 py-3 rounded-full font-bold block">OPEN GIFT 🎁</a>
+    </div>
+
+    <div class="hint">PC: WASD | Mobile: Drag to Move</div>
+
+    <script>
+        let scene, camera, renderer, player, letters = [], foundCount = 0;
+        const nameToFind = "SIYAANURAGNARUTE"; 
+        let moveForward = 0, moveTurn = 0;
+
+        // Start function
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020617);
+            scene.fog = new THREE.Fog(0x020617, 10, 80);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const amb = new THREE.AmbientLight(0xffffff, 0.4);
+            scene.add(amb);
+            const point = new THREE.PointLight(0xff0080, 2, 50);
+            point.position.set(0, 10, 0);
+            scene.add(point);
+
+            // Heart Character
+            const hShape = new THREE.Shape();
+            hShape.moveTo(0, 0);
+            hShape.bezierCurveTo(0, -0.3, -0.6, -0.3, -0.6, 0);
+            hShape.bezierCurveTo(-0.6, 0.3, 0, 0.6, 0, 1);
+            hShape.bezierCurveTo(0, 0.6, 0.6, 0.3, 0.6, 0);
+            hShape.bezierCurveTo(0.6, -0.3, 0, -0.3, 0, 0);
+
+            const hGeo = new THREE.ExtrudeGeometry(hShape, { depth: 0.3, bevelEnabled: false });
+            hGeo.rotateX(Math.PI);
+            hGeo.center();
+            player = new THREE.Mesh(hGeo, new THREE.MeshPhongMaterial({ color: 0xff0080 }));
+            player.position.y = 1;
+            scene.add(player);
+
+            // Island
+            const island = new THREE.Mesh(
+                new THREE.CylinderGeometry(40, 42, 2, 32),
+                new THREE.MeshPhongMaterial({ color: 0x0a140a })
+            );
+            island.position.y = -1;
+            scene.add(island);
+
+            // Water
+            const water = new THREE.Mesh(
+                new THREE.PlaneGeometry(1000, 1000),
+                new THREE.MeshPhongMaterial({ color: 0x000511 })
+            );
+            water.rotation.x = -Math.PI/2;
+            water.position.y = -1.1;
+            scene.add(water);
+
+            // UI Letters
+            const uiDisp = document.getElementById('letter-display');
+            for(let i=0; i < nameToFind.length; i++) {
+                const s = document.createElement('span');
+                s.id = 'L' + i; s.className = 'letter-tag'; s.innerText = nameToFind[i];
+                uiDisp.appendChild(s);
+                spawnLetter(nameToFind[i], i);
+            }
+
+            // Trees
+            for(let i=0; i<30; i++) {
+                const tx = (Math.random()-0.5)*60;
+                const tz = (Math.random()-0.5)*60;
+                if(Math.sqrt(tx*tx + tz*tz) < 35) {
+                    const trunk = new THREE.Mesh(new THREE.BoxGeometry(0.5, 3, 0.5), new THREE.MeshPhongMaterial({color: 0x221100}));
+                    trunk.position.set(tx, 0.5, tz);
+                    const top = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2), new THREE.MeshPhongMaterial({color: 0x052205}));
+                    top.position.set(tx, 2.5, tz);
+                    scene.add(trunk); scene.add(top);
+                }
+            }
+
+            camera.position.set(0, 10, 20);
+            animate();
+        }
+
+        function spawnLetter(char, idx) {
+            const canvas = document.createElement('canvas');
+            const c = canvas.getContext('2d');
+            canvas.width = 64; canvas.height = 64;
+            c.fillStyle = "#ff85ff"; c.font = "bold 40px Arial";
+            c.textAlign = "center"; c.fillText(char, 32, 45);
+            const tex = new THREE.CanvasTexture(canvas);
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({map: tex}));
+            const ang = Math.random() * Math.PI * 2;
+            const rad = 5 + Math.random() * 30;
+            sprite.position.set(Math.cos(ang)*rad, 1, Math.sin(ang)*rad);
+            sprite.scale.set(2, 2, 1);
+            sprite.userData = { id: idx, found: false };
+            letters.push(sprite);
+            scene.add(sprite);
+        }
+
+        // Control Logic
+        window.addEventListener('keydown', (e) => {
+            if(e.key === "w" || e.key === "ArrowUp") moveForward = 0.5;
+            if(e.key === "s" || e.key === "ArrowDown") moveForward = -0.5;
+            if(e.key === "a" || e.key === "ArrowLeft") moveTurn = 0.04;
+            if(e.key === "d" || e.key === "ArrowRight") moveTurn = -0.04;
+        });
+        window.addEventListener('keyup', () => { moveForward = 0; moveTurn = 0; });
+
+        let startX, startY;
+        window.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; });
+        window.addEventListener('touchmove', (e) => {
+            moveForward = -(e.touches[0].clientY - startY) * 0.008;
+            moveTurn = -(e.touches[0].clientX - startX) * 0.001;
+        });
+        window.addEventListener('touchend', () => { moveForward = 0; moveTurn = 0; });
+
+        function animate() {
+            requestAnimationFrame(animate);
+            player.rotation.y += moveTurn;
+            player.translateZ(-moveForward);
+
+            // Sea Boundary
+            if(Math.sqrt(player.position.x**2 + player.position.z**2) > 42) player.position.set(0, 1, 0);
+
+            // Camera follow
+            const camPos = new THREE.Vector3(0, 10, 15).applyMatrix4(player.matrixWorld);
+            camera.position.lerp(camPos, 0.1);
+            camera.lookAt(player.position);
+
+            // Check Collision
+            letters.forEach(l => {
+                if(!l.userData.found && player.position.distanceTo(l.position) < 2.5) {
+                    l.userData.found = true; l.visible = false;
+                    document.getElementById('L' + l.userData.id).classList.add('found');
+                    foundCount++;
+                    if(foundCount === nameToFind.length) document.getElementById('win-modal').style.display = 'block';
+                }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = init;
+        window.onresize = () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        };
+    </script>
+</body>
+</html>
